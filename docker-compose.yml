@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: barq
+      POSTGRES_PASSWORD: barq
+      POSTGRES_DB: barq
+    volumes:
+      - barq-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barq -d barq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://barq:barq@db:5432/barq
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000}
+      RESERVE_RATIO: ${RESERVE_RATIO:-0.08}
+      RESERVE_WINDOW_MINUTES: ${RESERVE_WINDOW_MINUTES:-10}
+      NOMINAL_FREQUENCY_HZ: ${NOMINAL_FREQUENCY_HZ:-50.0}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  barq-pgdata:

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Barq — Grid Dispatch Console</title>
+<meta name="description" content="Barq is a smart grid dispatch and monitoring console: merit-order dispatch, ramp limits, storage arbitrage and reserve adequacy, with every setpoint explained." />
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+<!-- ================= AUTH ================= -->
+<div id="auth-screen" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">⚡</span>
+      <div>
+        <h1>Barq</h1>
+        <p class="brand-sub">Grid dispatch console</p>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="login" role="tab" aria-selected="true">Sign in</button>
+      <button class="tab" data-tab="register" role="tab" aria-selected="false">Create account</button>
+    </div>
+
+    <form id="login-form" class="auth-form">
+      <label>Email<input type="email" name="email" autocomplete="username" required /></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required /></label>
+      <button type="submit" class="btn btn-primary">Sign in</button>
+      <p class="hint">Demo: <code>aisha@barq-example.com</code> / <code>barq-demo-2026</code></p>
+    </form>
+
+    <form id="register-form" class="auth-form is-hidden">
+      <label>Full name<input type="text" name="full_name" autocomplete="name" required /></label>
+      <label>Email<input type="email" name="email" autocomplete="username" required /></label>
+      <label>Password<input type="password" name="password" autocomplete="new-password" minlength="8" required /></label>
+      <button type="submit" class="btn btn-primary">Create account</button>
+      <p class="hint">The first account on a fresh install becomes the admin.</p>
+    </form>
+
+    <p id="auth-error" class="error" role="alert"></p>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app-screen" class="app-screen is-hidden">
+  <header class="topbar">
+    <div class="brand brand-sm">
+      <span class="brand-mark" aria-hidden="true">⚡</span>
+      <div>
+        <h1>Barq</h1>
+        <p class="brand-sub">Grid dispatch console</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="user-chip" class="chip"></span>
+      <button id="logout-btn" class="btn btn-ghost">Sign out</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- KPI row -->
+    <section class="kpis" aria-label="Grid summary">
+      <div class="kpi">
+        <span class="kpi-label">Total load</span>
+        <strong id="kpi-load" class="kpi-value">—</strong>
+        <span class="kpi-unit">MW</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Capacity</span>
+        <strong id="kpi-capacity" class="kpi-value">—</strong>
+        <span class="kpi-unit">MW</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Renewable share</span>
+        <strong id="kpi-renewable" class="kpi-value">—</strong>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Frequency</span>
+        <strong id="kpi-frequency" class="kpi-value">—</strong>
+        <span class="kpi-unit">Hz</span>
+      </div>
+      <div class="kpi kpi-alert">
+        <span class="kpi-label">Open alerts</span>
+        <strong id="kpi-alerts" class="kpi-value">—</strong>
+        <span class="kpi-unit" id="kpi-critical">0 critical</span>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <!-- Dispatch panel -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Dispatch interval</h2>
+          <span class="panel-note">Merit order, ramp limits, storage and reserve</span>
+        </div>
+
+        <form id="dispatch-form" class="dispatch-form">
+          <label class="field">
+            <span>Feeder</span>
+            <select id="feeder-select" required></select>
+          </label>
+          <label class="field">
+            <span>Demand (MW)</span>
+            <input id="demand-input" type="number" min="0" max="5000" step="1" value="620" required />
+          </label>
+          <label class="field">
+            <span>Interval (minutes)</span>
+            <select id="interval-select">
+              <option value="15">15</option>
+              <option value="30" selected>30</option>
+              <option value="60">60</option>
+            </select>
+          </label>
+          <div class="dispatch-actions">
+            <button type="submit" class="btn btn-primary">Solve &amp; commit</button>
+            <button type="button" id="preview-btn" class="btn btn-ghost">Preview only</button>
+          </div>
+        </form>
+
+        <div id="dispatch-result" class="result is-hidden">
+          <div class="result-head">
+            <span id="result-status" class="badge"></span>
+            <span id="result-cost" class="result-cost"></span>
+          </div>
+          <div class="result-stats">
+            <div><span>Generation</span><strong id="res-gen">—</strong></div>
+            <div><span>Storage</span><strong id="res-storage">—</strong></div>
+            <div><span>Curtailed</span><strong id="res-curtailed">—</strong></div>
+            <div><span>Unserved</span><strong id="res-unserved">—</strong></div>
+            <div><span>Reserve</span><strong id="res-reserve">—</strong></div>
+            <div><span>Marginal price</span><strong id="res-price">—</strong></div>
+          </div>
+          <div id="result-notes" class="notes"></div>
+          <h3 class="subhead">Unit setpoints</h3>
+          <div id="allocations" class="allocations"></div>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Alerts</h2>
+          <span class="panel-note">Raised by the solver, not a separate monitor</span>
+        </div>
+        <div id="alerts-list" class="alerts"></div>
+      </section>
+    </div>
+
+    <!-- Fleet -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Fleet</h2>
+        <span class="panel-note">Every unit, its band and its cost</span>
+      </div>
+      <div class="table-wrap">
+        <table class="fleet-table">
+          <thead>
+            <tr>
+              <th>Unit</th><th>Kind</th><th>Capacity</th><th>Min stable</th>
+              <th>Ramp</th><th>Cost</th><th>SoC</th>
+            </tr>
+          </thead>
+          <tbody id="fleet-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
